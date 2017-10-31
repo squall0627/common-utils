@@ -32,19 +32,6 @@ public class StreamForker<T> {
         return this;
     }
 
-//    private class ParallelSpliteratorDto {
-//        Class<? extends ParallelSpliterator> spliteratorClass;
-//        int parallelism = 0;
-//
-//        public ParallelSpliteratorDto(Class<? extends ParallelSpliterator> spliteratorClass) {
-//            this.spliteratorClass = spliteratorClass;
-//        }
-//
-//        public ParallelSpliteratorDto(Class<? extends ParallelSpliterator> spliteratorClass, int parallelism) {
-//            this.spliteratorClass = spliteratorClass;
-//            this.parallelism = parallelism;
-//        }
-//    }
 
     public StreamForker<T> fork(Object key, Function<Stream<T>, ?> function,
                                 int parallelism) {
