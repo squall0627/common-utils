@@ -11,8 +11,8 @@ public class ParallelBlockingQueueSpliterator<T> implements AddableParallelSplit
     private final BlockingQueue<T> q;
     private int parallelism = 0;
 
-    public ParallelBlockingQueueSpliterator(int parallelism) {
-        System.out.println("ParallelBlockingQueueSpliterator created");
+    ParallelBlockingQueueSpliterator(int parallelism) {
+        System.out.println("ParallelBlockingQueueSpliterator ->created");
         this.parallelism = parallelism;
 //        q = new ConcurrentLinkedQueue<T>();
         q = new LinkedBlockingQueue<>();
@@ -42,7 +42,7 @@ public class ParallelBlockingQueueSpliterator<T> implements AddableParallelSplit
             try {
                 t = q.take();
                 break;
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignored) {
             }
         }
         if (t != ForkingStreamConsumer.END_OF_STREAM) {

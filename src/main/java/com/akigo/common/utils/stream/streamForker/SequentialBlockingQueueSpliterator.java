@@ -10,7 +10,7 @@ public class SequentialBlockingQueueSpliterator<T> implements AddableSequentialS
     private final BlockingQueue<T> q = new LinkedBlockingQueue<>();
 
     public SequentialBlockingQueueSpliterator() {
-        System.out.println("BlockingQueueSpliterator created");
+        System.out.println("BlockingQueueSpliterator ->created");
     }
 
     @Override
@@ -26,7 +26,7 @@ public class SequentialBlockingQueueSpliterator<T> implements AddableSequentialS
             try {
                 t = q.take();
                 break;
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignored) {
             }
         }
         if (t != ForkingStreamConsumer.END_OF_STREAM) {

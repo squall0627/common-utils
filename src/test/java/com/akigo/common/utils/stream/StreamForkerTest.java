@@ -11,7 +11,7 @@ public class StreamForkerTest extends TestCase {
 
     public void testGetResults_1() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
-        Results results = new StreamForker<Integer>(stream)
+        Results results = new StreamForker<>(stream)
                 .fork("key1", s -> s.reduce(0, Integer::sum))
                 .fork("key2", s -> s.reduce(0, Integer::max))
                 .fork("key3", s -> s.reduce(0, Integer::min))
@@ -28,7 +28,7 @@ public class StreamForkerTest extends TestCase {
 
     public void testGetResults_2() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
-        Results results = new StreamForker<Integer>(stream, SequentialArrayListSpliterator.class)
+        Results results = new StreamForker<>(stream, SequentialArrayListSpliterator<Integer>::new)
                 .fork("key1", s -> s.reduce(0, Integer::sum))
                 .fork("key2", s -> s.reduce(0, Integer::max))
                 .fork("key3", s -> s.reduce(0, Integer::min))
@@ -45,7 +45,7 @@ public class StreamForkerTest extends TestCase {
 
     public void testGetResults_3() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
-        Results results = new StreamForker<Integer>(stream, SequentialArrayListSpliterator.class)
+        Results results = new StreamForker<>(stream, SequentialArrayListSpliterator<Integer>::new)
                 .fork("key1", s -> s.reduce(0, Integer::sum), 100)
                 .fork("key2", s -> s.reduce(0, Integer::max), 3)
                 .fork("key3", s -> s.reduce(0, Integer::min), 3)

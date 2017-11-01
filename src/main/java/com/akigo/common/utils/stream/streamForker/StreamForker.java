@@ -7,24 +7,25 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class StreamForker<T> {
 
     private final Stream<T> stream;
-    private final Class<? extends AddableSequentialSpliterator> spliteratorClass;
+    private final Supplier<AddableSequentialSpliterator<T>> spSupplier;
     private final Map<Object, Function<Stream<T>, ?>> forks = new HashMap<>();
-    private final Map<Object, Integer> parallelspliteratorMap = new HashMap<>();
+    private final Map<Object, Integer> parallelSpliteratorMap = new HashMap<>();
 
     public StreamForker(Stream<T> stream) {
         this.stream = stream;
-        this.spliteratorClass = null;
+        this.spSupplier = null;
     }
 
-    public StreamForker(Stream<T> stream, Class<? extends AddableSequentialSpliterator> spliteratorClass) {
+    public StreamForker(Stream<T> stream, Supplier<AddableSequentialSpliterator<T>> spSupplier) {
         this.stream = stream;
-        this.spliteratorClass = spliteratorClass;
+        this.spSupplier = spSupplier;
     }
 
     public StreamForker<T> fork(Object key, Function<Stream<T>, ?> function) {
@@ -36,7 +37,7 @@ public class StreamForker<T> {
     public StreamForker<T> fork(Object key, Function<Stream<T>, ?> function,
                                 int parallelism) {
         fork(key, function);
-        this.parallelspliteratorMap.put(key, parallelism);
+        this.parallelSpliteratorMap.put(key, parallelism);
         return this;
     }
 
@@ -63,40 +64,36 @@ public class StreamForker<T> {
                     map1.putAll(map2);
                     return map1;
                 });
-        return new ForkingStreamConsumer<T>(spliterators, actions);
+        return new ForkingStreamConsumer<>(spliterators, actions);
     }
 
-    private Future<?> createAsyncTask(List<Addable<T>> spliterators, Object key, Function<Stream<T>, ?> function) {
+    private Future<?> createAsyncTask(List<Addable<T>> spList, Object key, Function<Stream<T>, ?> function) {
         final Stream<T> newStream;
-        if (!this.parallelspliteratorMap.containsKey(key)) {
-            AddableSequentialSpliterator<T> spliterator = createSequentialSpliterator();
-            spliterators.add(spliterator);
-            newStream = StreamSupport.stream(spliterator, false);
+        if (!this.parallelSpliteratorMap.containsKey(key)) {
+            AddableSequentialSpliterator<T> sp = createSequentialSpliterator();
+            spList.add(sp);
+            newStream = StreamSupport.stream(sp, false);
         } else {
-            AddableParallelSpliterator spliterator = createParallelSpliterator(this.parallelspliteratorMap.get(key));
-            spliterators.add(spliterator);
-            newStream = StreamSupport.stream(spliterator, true);
+            AddableParallelSpliterator<T> sp = createParallelSpliterator(this.parallelSpliteratorMap.get(key));
+            spList.add(sp);
+            newStream = StreamSupport.stream(sp, true);
         }
         return CompletableFuture.supplyAsync(() -> function.apply(newStream));
     }
 
     private AddableSequentialSpliterator<T> createSequentialSpliterator() {
-        if (this.spliteratorClass == null) {
-            return AddableSequentialSpliterator.<T>getDefaultSpliterator();
+        if (this.spSupplier == null) {
+            return (AddableSequentialSpliterator.<T>getDefaultSpliterator()).get();
         } else {
-            try {
-                return this.spliteratorClass.newInstance();
-            } catch (InstantiationException | IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
+            return this.spSupplier.get();
         }
     }
 
     private AddableParallelSpliterator<T> createParallelSpliterator(int parallelism) {
         if (parallelism > 0) {
-            return AddableParallelSpliterator.<T>getDefaultSpliterator(parallelism);
+            return AddableParallelSpliterator.<T>getDefaultSpliterator(parallelism).get();
         } else {
-            return AddableParallelSpliterator.<T>getDefaultSpliterator();
+            return AddableParallelSpliterator.<T>getDefaultSpliterator().get();
         }
     }
 }

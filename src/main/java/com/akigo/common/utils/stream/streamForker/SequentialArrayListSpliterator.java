@@ -11,7 +11,7 @@ public class SequentialArrayListSpliterator<T> implements AddableSequentialSplit
     private int currIndex = 0;
 
     public SequentialArrayListSpliterator() {
-        System.out.println("ArrayListSpliterator created");
+        System.out.println("ArrayListSpliterator ->created");
     }
 
     @Override

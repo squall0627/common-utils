@@ -13,18 +13,17 @@ public class ForkingStreamConsumer<T> implements Consumer<T>, Results {
     private final List<Addable<T>> spliterators;
     private final Map<Object, Future<?>> actions;
 
-    public ForkingStreamConsumer(List<Addable<T>> spliterators, Map<Object, Future<?>> actions) {
+    ForkingStreamConsumer(List<Addable<T>> spliterators, Map<Object, Future<?>> actions) {
         this.spliterators = spliterators;
         this.actions = actions;
     }
 
-
     @Override
     public void accept(T t) {
-        spliterators.stream().forEach(spliterator -> spliterator.add(t));
+        spliterators.forEach(spliterator -> spliterator.add(t));
     }
 
-    public void finish() {
+    void finish() {
         accept((T) END_OF_STREAM);
     }
 
