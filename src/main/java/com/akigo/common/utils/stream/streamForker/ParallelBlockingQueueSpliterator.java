@@ -1,3 +1,13 @@
+/*
+ * ParallelBlockingQueueSpliterator.java
+ * Created on  2017/11/3 0:55
+ *
+ * Copyright (c) 2017-2099. AkiGo科技有限公司 版权所有
+ * AkiGo TECHNOLOGY CO.,LTD. All Rights Reserved.
+ *
+ * Date          Author     Version    Discription
+ * 2017/11/3     浩         V1.0.1     InitVer
+ */
 package com.akigo.common.utils.stream.streamForker;
 
 import java.util.Spliterator;
@@ -28,7 +38,6 @@ public class ParallelBlockingQueueSpliterator<T> implements AddableParallelSplit
         q.add(t);
     }
 
-
     @Override
     public boolean tryAdvance(Consumer<? super T> action) {
         T t;
@@ -54,7 +63,6 @@ public class ParallelBlockingQueueSpliterator<T> implements AddableParallelSplit
         }
     }
 
-
     @Override
     public Spliterator<T> trySplit() {
         if (this.parallelism > 0) {
@@ -65,16 +73,13 @@ public class ParallelBlockingQueueSpliterator<T> implements AddableParallelSplit
         }
     }
 
-
     @Override
     public long estimateSize() {
         return this.parallelism;
     }
 
-
     @Override
     public int characteristics() {
         return 0;
     }
-
 }

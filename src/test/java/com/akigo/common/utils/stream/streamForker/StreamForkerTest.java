@@ -1,15 +1,24 @@
-package com.akigo.common.utils.stream;
+/*
+ * StreamForkerTest.java
+ * Created on  2017/11/3 0:55
+ *
+ * Copyright (c) 2017-2099. AkiGo科技有限公司 版权所有
+ * AkiGo TECHNOLOGY CO.,LTD. All Rights Reserved.
+ *
+ * Date          Author     Version    Discription
+ * 2017/11/3     浩         V1.0.1     InitVer
+ */
+package com.akigo.common.utils.stream.streamForker;
 
-import com.akigo.common.utils.stream.streamForker.*;
-import junit.framework.TestCase;
+import org.junit.Test;
 
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class StreamForkerTest extends TestCase {
+public class StreamForkerTest {
 
-
-    public void testGetResults_1() throws Exception {
+    @Test
+    public void getResults_1() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
         Results results = new StreamForker<>(stream)
                 .fork("key1", s -> s.reduce(0, Integer::sum))
@@ -26,7 +35,8 @@ public class StreamForkerTest extends TestCase {
         System.out.println(v3);
     }
 
-    public void testGetResults_2() throws Exception {
+    @Test
+    public void getResults_2() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
         Results results = new StreamForker<>(stream, SequentialArrayListSpliterator<Integer>::new)
                 .fork("key1", s -> s.reduce(0, Integer::sum))
@@ -43,7 +53,8 @@ public class StreamForkerTest extends TestCase {
         System.out.println(v3);
     }
 
-    public void testGetResults_3() throws Exception {
+    @Test
+    public void getResults_3() throws Exception {
         Stream<Integer> stream = IntStream.rangeClosed(1, 100).boxed();
         Results results = new StreamForker<>(stream, SequentialArrayListSpliterator<Integer>::new)
                 .fork("key1", s -> s.reduce(0, Integer::sum), 100)
@@ -59,5 +70,4 @@ public class StreamForkerTest extends TestCase {
         System.out.println(v2);
         System.out.println(v3);
     }
-
 }
