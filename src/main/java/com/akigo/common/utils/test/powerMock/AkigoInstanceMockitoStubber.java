@@ -17,6 +17,8 @@ import org.mockito.verification.VerificationMode;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.api.mockito.expectation.PowerMockitoStubber;
 
+import java.util.function.Consumer;
+
 /**
  * 类的描述信息<br>
  * <br>
@@ -462,6 +464,11 @@ public class AkigoInstanceMockitoStubber<T> {
         } catch(Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public AkigoInstanceMockitoStubber<T> addCase(Consumer<AkigoInstanceMockitoStubber<T>> stubCase) {
+        stubCase.accept(this);
+        return this;
     }
 
     /**

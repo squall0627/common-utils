@@ -76,17 +76,17 @@ public class PowerMockHelper {
 //        mo.when("finalStaticMethod", "aaa").thenReturn("mockfinalStaticMethod");
 //        mo.when("privateFinalStaticMethod").thenReturn("mockprivateFinalStaticMethod");
 
-        mockAnyStatic(MockTarget.class).addCase(mock -> {
-            ((AkigoStaticMockitoStubber) mock).when("privateFinalStaticMethod").thenReturn("mockprivateFinalStaticMethod");
-        }).addCase((mock) -> {
-            ((AkigoStaticMockitoStubber) mock).when("privateStaticMethod").thenReturn("mockPrivateStaticMethod");
-        }).addCase((mock) -> {
-            ((AkigoStaticMockitoStubber) mock).when("staticMethod").thenReturn("mockStaticMethod");
-        }).addCase((mock) -> {
-            ((AkigoStaticMockitoStubber) mock).when("finalStaticMethod", "aaa").thenReturn("mockfinalStaticMethod");
-        }).addCase((mock) -> {
-            ((AkigoStaticMockitoStubber) mock).when("privateFinalStaticMethod").thenReturn("mockprivateFinalStaticMethod");
-        });
+        mockAnyStatic(MockTarget.class).addCase(mock ->
+                mock.when("privateFinalStaticMethod").thenReturn("mockprivateFinalStaticMethod")
+        ).addCase(mock ->
+                mock.when("privateStaticMethod").thenReturn("mockPrivateStaticMethod")
+        ).addCase(mock ->
+                mock.when("staticMethod").thenReturn("mockStaticMethod")
+        ).addCase(mock ->
+                mock.when("finalStaticMethod", "aaa").thenReturn("mockfinalStaticMethod")
+        ).addCase(mock ->
+                mock.when("privateFinalStaticMethod").thenReturn("mockprivateFinalStaticMethod")
+        );
 
 //            mo.when(MockTarget.class, "innerFinalMethod").thenReturn("mockinnerFinalMethod");
 //            mo.when(MockTarget.class, "innerPrivateFinalMethod").thenReturn("mockinnerPrivateFinalMethod");
@@ -100,8 +100,11 @@ public class PowerMockHelper {
 
         AkigoInstanceMockitoStubber<MockTarget> mockedTarget = mockAnyInstance(new MockTarget());
 
-        mockedTarget.when("innerFinalMethod").thenReturn("mockinnerFinalMethod");
-        mockedTarget.when("innerPrivateFinalMethod").thenReturn("mockinnerPrivateFinalMethod");
+        mockedTarget
+                .addCase(mock -> mock.when("innerFinalMethod").thenReturn("mockinnerFinalMethod"))
+                .addCase(mock -> mock.when("innerPrivateFinalMethod").thenReturn("mockinnerPrivateFinalMethod"));
+//        mockedTarget.when("innerFinalMethod").thenReturn("mockinnerFinalMethod");
+//        mockedTarget.when("innerPrivateFinalMethod").thenReturn("mockinnerPrivateFinalMethod");
 
         System.out.println(mockedTarget.getTarget().innerFinalMethod());
         System.out.println(mockedTarget.getTarget().innerPrivateFinalMethodTest());
@@ -116,12 +119,12 @@ public class PowerMockHelper {
 //        }
 //    }
 
-    public AkigoStaticMockitoStubber mockAnyStatic(Class<?> targetCLazz) {
+    public <T> AkigoStaticMockitoStubber<T> mockAnyStatic(Class<T> targetCLazz) {
         PowerMockito.spy(targetCLazz);
         return new AkigoStaticMockitoStubber(targetCLazz);
     }
 
-    public AkigoInstanceMockitoStubber mockAnyInstance(Object targetInstance) {
+    public <T> AkigoInstanceMockitoStubber mockAnyInstance(T targetInstance) {
         return new AkigoInstanceMockitoStubber(PowerMockito.spy(targetInstance));
     }
 }

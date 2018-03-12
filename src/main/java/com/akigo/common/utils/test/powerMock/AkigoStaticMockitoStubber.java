@@ -515,7 +515,7 @@ public class AkigoStaticMockitoStubber<T> {
         }
     }
 
-    public AkigoStaticMockitoStubber addCase(Consumer<AkigoStaticMockitoStubber<T>> stubCase) {
+    public AkigoStaticMockitoStubber<T> addCase(Consumer<AkigoStaticMockitoStubber<T>> stubCase) {
         stubCase.accept(this);
         return this;
     }
