@@ -20,22 +20,18 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import jp.co.jfe_steel.JAT03.biz.B2.model.JAT03B2240Z01_BDto;
 import jp.co.jfe_steel.jax01.core.exception.SystemException;
 import jp.co.jfe_steel.jax01.core.report.ReportException;
 import jp.co.jfe_steel.jax01.core.report.text.csv.CSVReader;
 import jp.co.jfe_steel.jax01.core.report.text.csv.CSVWriter;
 
-public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
-                T>> {
+public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<T>> {
 
     private Logger logger = LoggerFactory.getLogger("watch");
 
-    private static final int DEFAULT_CACHE_THRESHOLD_DIVISOR = 10;
-
 //    private final Object memoryCacheLock = new Object();
 
-//    private static final int RECOVERING = -1;
+    //    private static final int RECOVERING = -1;
     private static final int NO_FLUSHED = -1;
     private static final int INITIALIIZED = 0;
     private static final int FLUSHING = 1;
@@ -61,16 +57,16 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
     private Future<List<T>> flushTask;
 
     AsyncSortBlock(AsyncSortPool<T> sortPool, Comparator<T> comparator,
-                   String cacheFileRootDir, int sortPoolThreshold, int blockIndex) {
-        this(sortPool, comparator, cacheFileRootDir, sortPoolThreshold, blockIndex, null);
+                                 String cacheFileRootDir, int blockThreshold, int blockIndex) {
+        this(sortPool, comparator, cacheFileRootDir, blockThreshold, blockIndex, null);
     }
 
     AsyncSortBlock(AsyncSortPool<T> sortPool,
-                   Comparator<T> comparator, String cacheFileRootDir, int sortPoolThreshold, int blockIndex,
-                   List<T> sortTargets) {
+                                 Comparator<T> comparator, String cacheFileRootDir, int blockThreshold, int blockIndex, List<
+            T> sortTargets) {
         this.sortPool = sortPool;
         this.comparator = comparator;
-        this.blockThreshold = sortPoolThreshold / DEFAULT_CACHE_THRESHOLD_DIVISOR;
+        this.blockThreshold = blockThreshold;
         this.waitQueueThreshold = this.blockThreshold;
         this.waitQueue = new ArrayList<>();
         this.fileCachePath = Paths.get(cacheFileRootDir, "fileCache_" + String.valueOf(blockIndex));
@@ -125,8 +121,8 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 
     boolean isBeforeFrom(T t) {
         return this.comparator.compare(
-            this.getLast() == null ? this.getFirst() : this.getLast(),
-            t) < 0;
+                this.getLast() == null ? this.getFirst() : this.getLast(),
+                t) < 0;
     }
 
     boolean isAfterFrom(T t) {
@@ -139,8 +135,8 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 
     boolean isInBound(T t, AsyncSortBlock<T> nextBlock) {
         return (this.last == null && this.isBeforeFrom(t) &&
-            (nextBlock == null || (nextBlock != null && nextBlock.isAfterFrom(t))))
-            || (this.first != null && this.last != null
+                (nextBlock == null || (nextBlock != null && nextBlock.isAfterFrom(t))))
+                || (this.first != null && this.last != null
                 && this.comparator.compare(t, this.first) >= 0
                 && this.comparator.compare(t, this.last) <= 0);
 //        return (this.last == null &&
@@ -163,18 +159,17 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
             }
 
             // ※※※※lastが変更したので、SortBlockChainの順番の維持するために、SortBlockChainから外して、もう一回入れる必要がある
-            this.sortPool.removeFromSortBlockChain(this);
-            this.sortPool.addToSortBlockChain(this);
+            this.sortPool.reentrySortBlockChain(this);
         }
 
         tryFlush();
     }
 
     private void addToWaitQueue(T t) {
-        if ("18".equals(((JAT03B2240Z01_BDto) t).getJhopeGempinKey()) && "6".equals(
-            ((JAT03B2240Z01_BDto) t).getHikakuKeyJhope())) {
-            System.out.println("Stop");
-        }
+//        if ("18".equals(((JAT03B2240Z01_BDto) t).getJhopeGempinKey()) && "6".equals(
+//            ((JAT03B2240Z01_BDto) t).getHikakuKeyJhope())) {
+//            System.out.println("Stop");
+//        }
         this.waitQueue.add(t);
         trySwap();
     }
@@ -182,57 +177,13 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
     void tryFlush() {
 //        synchronized (this.memoryCacheLock) {
         if (isMemoryCacheFull()) {
-            this.flushTask = flush();
+            flush();
         }
 //        }
     }
 
-//    @SuppressWarnings("unchecked")
-//    private Future<List<T>> flush() {
-//
-//        // 前回のFlush処理の終わらない場合、キャンセルする
-//        tryCancelFlushTask();
-//
-//        final List<T> flushTargets = this.memoryCache.keySet().stream().collect(
-//            Collectors.toList());
-//
-//        flushStatus = FLUSHING;
-//
-//        // 非同期
-//
-//        // TODO
-//        logger.debug("FileCache:{}の書き込むが開始。", this.fileCachePath.toString());
-////            System.out.println(this.fileCachePath.toString() + " write start");
-//
-//        try (OutputStream os = Files.newOutputStream(this.fileCachePath);
-//                        CSVWriter<T> writer = new CSVWriter<T>(os, (Class<T>) flushTargets.get(
-//                            0).getClass(), false, Charset.forName(CSV_ENCODE));) {
-//            writer.write(flushTargets);
-//        } catch (IOException | ReportException e) {
-//            logger.warn(
-//                "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
-//                this.fileCachePath.toString(),
-//                e);
-//            for (T t : flushTargets) {
-//                this.memoryCache.put(t, t);
-//            }
-//            flushStatus = NO_FLUSHED;
-//            return null;
-//        }
-//
-//        // TODO
-//        logger.debug("FileCache:{}の書き込むが終了。", this.fileCachePath.toString());
-////            System.out.println(this.fileCachePath.toString() + " write end");
-//
-//        this.memoryCache.clear();
-//        this.flushStatus = FLUSHED;
-//
-//        return null;
-//
-//    }
-
     @SuppressWarnings("unchecked")
-    private Future<List<T>> flush() {
+    private void flush() {
 
         // 前回のFlush処理の終わらない場合、キャンセルする
         tryCancelFlushTask();
@@ -240,39 +191,38 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 //        flushStatus = NO_FLUSHED;
 
         final List<T> flushTargets = this.memoryCache.keySet().stream().collect(
-            Collectors.toList());
+                Collectors.toList());
 
         // 非同期
-        return CompletableFuture.supplyAsync(() -> {
+        this.flushTask = CompletableFuture.supplyAsync(() -> {
 
             // TODO
             logger.debug("FileCache:{}の書き込むが開始。", this.fileCachePath.toString());
 //            System.out.println(this.fileCachePath.toString() + " write start");
 
             try (OutputStream os = Files.newOutputStream(this.fileCachePath);
-                            CSVWriter<T> writer = new CSVWriter<T>(os, (Class<T>) flushTargets.get(
-                                0).getClass(), false, Charset.forName(CSV_ENCODE));) {
+                 CSVWriter<T> writer = new CSVWriter<T>(os, (Class<
+                         T>) flushTargets.get(0).getClass(), false, Charset
+                         .forName(CSV_ENCODE));) {
                 writer.write(flushTargets);
             } catch (IOException | ReportException e) {
                 logger.warn(
-                    "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
-                    this.fileCachePath.toString(),
-                    e);
+                        "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
+                        this.fileCachePath.toString(),
+                        e);
                 throw new SystemException(e);
             }
 
-            // TODO
-            logger.debug("FileCache:{}の書き込むが終了。", this.fileCachePath.toString());
 //            System.out.println(this.fileCachePath.toString() + " write end");
 
             return flushTargets;
         }).whenComplete((list, exception) -> {
             if (exception != null) {
                 // Flush失敗の場合
-                logger.debug(
-                    "{}のFlushが失敗しましたので、MemoryCacheを回復する。\r\n{}",
-                    this.fileCachePath.toString(),
-                    exception);
+                logger.warn(
+                        "{}のFlushが失敗しましたので、MemoryCacheを回復する。\r\n{}",
+                        this.fileCachePath.toString(),
+                        exception);
 
 //                System.out.println(
 //                    this.fileCachePath.toString() + "のFlushが失敗しましたので、MemoryCacheを回復する。");
@@ -293,6 +243,8 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
                 }
                 this.flushStatus = FLUSHED;
 //                }
+
+                logger.debug("FileCache:{}の書き込むが終了。", this.fileCachePath.toString());
             }
         });
     }
@@ -305,75 +257,11 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 //        synchronized (this.memoryCacheLock) {
         if (isWaitQueueFull() || (enforce && !this.waitQueue.isEmpty())) {
             if (swap()) {
-                this.flushTask = flush();
+                flush();
             }
         }
 //        }
     }
-
-//    private Boolean swap() {
-//
-//        // TODO
-//        logger.debug("FileCache:{}のswapが開始。", this.fileCachePath.toString());
-////        System.out.println(this.fileCachePath.toString() + " swap start");
-//
-//        // 前回のFlush処理の終わらない場合、キャンセルする
-//        tryCancelFlushTask();
-//
-//        try {
-//            List<T> dtoList = null;
-//            if (FLUSHED == flushStatus) {
-//                dtoList = read();
-//            } else {
-//                dtoList = this.memoryCache.keySet().stream().collect(Collectors.toList());
-//            }
-//
-//            this.sortPool.removeFromSortBlockChain(this);
-//
-//            dtoList.addAll(this.waitQueue);
-//
-//            Collections.sort(dtoList, this.comparator);
-//
-//            List<T> newMemoryCacheList = dtoList.subList(0, this.blockThreshold);
-//
-//            this.sortPool.backToPool(newMemoryCacheList);
-//
-////            this.memoryCache.clear();
-////            for (T t : newMemoryCacheList) {
-////                this.memoryCache.put(t, t);
-//////                System.out.println(t);
-////            }
-////
-////            this.waitQueue.clear();
-//
-////            // ※※※※lastが変更したので、SortBlockChainの順番の維持するために、SortBlockChainから外して、もう一回入れる必要がある
-////            this.sortPool.removeFromSortBlockChain(this);
-////
-////            this.first = newMemoryCacheList.get(0);
-////            this.last = newMemoryCacheList.get(newMemoryCacheList.size() - 1);
-////
-////            this.sortPool.addToSortBlockChain(this);
-//
-////            flushStatus = NO_FLUSHED;
-//
-//            List<T> backToPoolList = dtoList.subList(this.blockThreshold, dtoList.size());
-//            if (!backToPoolList.isEmpty()) {
-//                this.sortPool.backToPool(backToPoolList);
-//            }
-//
-//            // TODO
-//            logger.debug("FileCache:{}のswapが終了。", this.fileCachePath.toString());
-////            System.out.println(this.fileCachePath.toString() + " swap end");
-//
-//        } catch (IOException | ReportException e) {
-//            logger.warn(
-//                "ファイルキャッシュ:{}のswap処理が失敗しました。\r\n{}",
-//                this.fileCachePath.toString(),
-//                e);
-//            return false;
-//        }
-//        return true;
-//    }
 
     private Boolean swap() {
 
@@ -410,8 +298,7 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
             this.last = newMemoryCacheList.get(newMemoryCacheList.size() - 1);
 
             // ※※※※lastが変更したので、SortBlockChainの順番の維持するために、SortBlockChainから外して、もう一回入れる必要がある
-            this.sortPool.removeFromSortBlockChain(this);
-            this.sortPool.addToSortBlockChain(this);
+            this.sortPool.reentrySortBlockChain(this);
 
             flushStatus = NO_FLUSHED;
 
@@ -426,9 +313,9 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 
         } catch (IOException | ReportException e) {
             logger.warn(
-                "ファイルキャッシュ:{}のswap処理が失敗しました。\r\n{}",
-                this.fileCachePath.toString(),
-                e);
+                    "ファイルキャッシュ:{}のswap処理が失敗しました。\r\n{}",
+                    this.fileCachePath.toString(),
+                    e);
             return false;
         }
         return true;
@@ -438,17 +325,25 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
         if (this.flushTask != null && !this.flushTask.isDone() && !this.flushTask.isCancelled()) {
             boolean cancelled = this.flushTask.cancel(false);
             if (!cancelled) {
+
+                logger.debug(
+                        "ファイルキャッシュ:{}のflush処理がキャンセルできませんでしたので、終了するまで待つ。",
+                        this.fileCachePath.toString());
+
                 // タスクがキャンセルできない場合、終わるまで待つ
                 try {
                     this.flushTask.get();
                 } catch (InterruptedException | ExecutionException e) {
                     logger.warn(
-                        "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
-                        this.fileCachePath.toString(),
-                        e);
+                            "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
+                            this.fileCachePath.toString(),
+                            e);
                 }
             } else {
 //                flushStatus = NO_FLUSHED;
+                logger.debug(
+                        "ファイルキャッシュ:{}のflush処理がキャンセルされました。",
+                        this.fileCachePath.toString());
             }
         }
     }
@@ -514,16 +409,23 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
 
         if (FLUSHED == flushStatus) {
             try (InputStream is = Files.newInputStream(this.fileCachePath);
-                            CSVReader<T> reader = new CSVReader<T>(is, (Class<T>) this.first
-                                            .getClass(),
-                                false, Charset.forName(CSV_ENCODE));) {
+                 CSVReader<T> reader = new CSVReader<T>(is, (Class<
+                         T>) this.first.getClass(), false, Charset.forName(
+                         CSV_ENCODE));) {
 
                 return reader.read();
             }
         } else {
             return this.memoryCache.keySet().stream().collect(Collectors.toList());
         }
+    }
 
+    List<T> readAll() throws IOException, ReportException {
+        List<T> all = new ArrayList<>();
+        all.addAll(read());
+        all.addAll(this.waitQueue);
+        Collections.sort(all, this.comparator);
+        return all;
     }
 
     void completeFlush() {
@@ -532,9 +434,9 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
                 this.flushTask.get();
             } catch (InterruptedException | ExecutionException e) {
                 logger.warn(
-                    "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
-                    this.fileCachePath.toString(),
-                    e);
+                        "ファイルキャッシュ:{}のflush処理が失敗しました。\r\n{}",
+                        this.fileCachePath.toString(),
+                        e);
             }
         }
     }
@@ -542,8 +444,8 @@ public class AsyncSortBlock<T> implements Comparable<AsyncSortBlock<
     @Override
     public int compareTo(AsyncSortBlock<T> o) {
         return this.comparator.compare(
-            this.getLast() == null ? this.getFirst() : this.getLast(),
-            o.getFirst());
+                this.getLast() == null ? this.getFirst() : this.getLast(),
+                o.getFirst());
     }
 
 }

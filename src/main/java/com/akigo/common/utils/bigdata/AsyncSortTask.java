@@ -10,12 +10,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jp.co.jfe_steel.jax01.core.util.StopWatchTime;
 
 public class AsyncSortTask<T> {
 
     private Logger logger = LoggerFactory.getLogger("watch");
 
-    private static final int DEFAULT_SORT_POOL_THRESHOLD = 100000;
+    private static final int DEFAULT_SORT_POOL_THRESHOLD = 1000000;
+    private static final int DEFAULT_SORT_BLOCK_CHAIN_THRESHOLD = 100;
 
     private final Object END = new Object();
 
@@ -31,27 +33,28 @@ public class AsyncSortTask<T> {
 //    private final int sortPoolThreshold;
 
     public AsyncSortTask(Comparator<T> comparator, String cacheFileDir) {
-        this(comparator, cacheFileDir, DEFAULT_SORT_POOL_THRESHOLD);
+        this(comparator, cacheFileDir, DEFAULT_SORT_POOL_THRESHOLD,
+                DEFAULT_SORT_BLOCK_CHAIN_THRESHOLD);
     }
 
     public AsyncSortTask(Comparator<T> comparator, String cacheFileRootDir,
-                         int memoryThreshold) {
+                                       int sortPoolThreshold, int sortBlockChainThreshold) {
 //        this.comparator = comparator;
 //        this.cacheFileRootDir = cacheFileRootDir;
 //        this.sortPoolThreshold = memoryThreshold;
         this.sortTargetQueue = new LinkedBlockingQueue<>();
         this.sortPool = new AsyncSortPool<>(comparator, cacheFileRootDir,
-            memoryThreshold);
+                sortPoolThreshold, sortBlockChainThreshold);
     }
 
     public void start() {
         this.sortTask = CompletableFuture.supplyAsync(() -> this.sort()).whenComplete(
-            (result, exception) -> {
-                this.sortPool.clearWaitQueue();
-                if (onFinishedCallback != null) {
-                    doFinishedCallback();
-                }
-            });
+                (result, exception) -> {
+                    // this.sortPool.clearWaitQueue();
+                    if (onFinishedCallback != null) {
+                        doFinishedCallback();
+                    }
+                });
     }
 
     public void send(T t) {
@@ -64,7 +67,7 @@ public class AsyncSortTask<T> {
         this.sortTargetQueue.add((T) END);
     }
 
-    public Boolean sort() {
+    private Boolean sort() {
         logger.debug("AsyncTask sort() Started.");
         T t;
         for (;;) {
@@ -93,7 +96,13 @@ public class AsyncSortTask<T> {
 //        logger.debug("doWhenFinished. SortTask status isDone:{}", this.sortTask.isDone());
 //        try {
 //            if (this.sortTask.get()) {
+        StopWatchTime sw = new StopWatchTime();
+        System.out.println("ファイル出力が始まりました。");
+
+        sw.startTime();
         this.onFinishedCallback.accept(this.sortPool.iterator());
+
+        System.out.println("ファイル出力が終了しました。実行時間：" + sw.stopTime());
 //            }
 //        } catch (InterruptedException | ExecutionException e) {
 //            logger.error("非同期ソートタスクが失敗しました。", e);

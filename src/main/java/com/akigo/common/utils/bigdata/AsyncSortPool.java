@@ -6,40 +6,45 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import jp.co.jfe_steel.JAT03.biz.B2.model.JAT03B2240Z01_BDto;
 import jp.co.jfe_steel.jax01.core.exception.SystemException;
 import jp.co.jfe_steel.jax01.core.report.ReportException;
 
-public class AsyncSortPool<T> implements Iterator<T> {
+public class AsyncSortPool<T> implements Iterable<T> {
 
     private Logger logger = LoggerFactory.getLogger("watch");
 
     private volatile AtomicLong countSortPool = new AtomicLong(0l);
 
-    private Iterator<AsyncSortBlock<T>> currSortBlockChainIterator;
-    private Iterator<T> currDtoIterator;
-
     private int blockIndex = 0;
 
     private final Comparator<T> comparator;
     private final String cacheFileRootDir;
+
     private final int sortPoolThreshold;
+    private final int sortBlockChainMinSize;
+    private final int sortBlockChainMaxSize;
+    private final int blockThreshold;
 
     private final TreeMap<AsyncSortBlock<T>, AsyncSortBlock<
-                        T>> sortBlockChain;
+            T>> sortBlockChain;
 
     AsyncSortPool(Comparator<T> comparator, String cacheFileRootDir,
-                  int sortPoolThreshold) {
+                                int sortPoolThreshold, int sortBlockChainThreshold) {
         this.sortPoolThreshold = sortPoolThreshold;
+        this.sortBlockChainMinSize = sortBlockChainThreshold;
+        System.out.println("sortBlockChainMinSize:" + this.sortBlockChainMinSize);
+        this.sortBlockChainMaxSize = this.sortBlockChainMinSize * 10;
+        this.blockThreshold = this.sortPoolThreshold / this.sortBlockChainMinSize;
+        System.out.println("blockThreshold:" + this.blockThreshold);
         this.cacheFileRootDir = cacheFileRootDir + "_" + String.valueOf(System.currentTimeMillis());
 
         try {
@@ -100,7 +105,7 @@ public class AsyncSortPool<T> implements Iterator<T> {
             targetBlock.add(t);
         } else {
             AsyncSortBlock<T> newSortBlock = new AsyncSortBlock<>(this,
-                this.comparator, this.cacheFileRootDir, this.sortPoolThreshold, blockIndex++);
+                    this.comparator, this.cacheFileRootDir, this.blockThreshold, blockIndex++);
             newSortBlock.add(t);
             addToSortBlockChain(newSortBlock);
 
@@ -140,20 +145,19 @@ public class AsyncSortPool<T> implements Iterator<T> {
     void backToPool(List<T> sortTargets) {
 
         logger.debug(
-            "backToPoolが開始されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
-            this.countSortPool,
-            this.sortBlockChain.size());
+                "backToPoolが開始されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
+                this.countSortPool,
+                this.sortBlockChain.size());
 
         AsyncSortBlock<T> sortBlock = new AsyncSortBlock<>(this,
-            this.comparator, this.cacheFileRootDir, this.sortPoolThreshold, blockIndex++,
-            sortTargets);
+                this.comparator, this.cacheFileRootDir, this.blockThreshold, blockIndex++, sortTargets);
         sortBlock.tryFlush();
         addToSortBlockChain(sortBlock);
 
         logger.debug(
-            "backToPoolが終了されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
-            this.countSortPool,
-            this.sortBlockChain.size());
+                "backToPoolが終了されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
+                this.countSortPool,
+                this.sortBlockChain.size());
     }
 
     void addToSortBlockChain(AsyncSortBlock<T> sortBlock) {
@@ -162,34 +166,44 @@ public class AsyncSortPool<T> implements Iterator<T> {
 
     void removeFromSortBlockChain(AsyncSortBlock<T> sortBlock) {
 
-        Map<AsyncSortBlock<T>, AsyncSortBlock<T>> tmp =
-            new LinkedHashMap<>();
-        for (Entry<AsyncSortBlock<T>, AsyncSortBlock<
-                                T>> en : this.sortBlockChain.entrySet()) {
-            if (sortBlock != en.getKey()) {
-                tmp.put(en.getKey(), en.getValue());
-            } else {
-//                System.out.println(sortBlock);
+//        Map<AsyncSortBlock<T>, AsyncSortBlock<T>> tmp =
+//            new LinkedHashMap<>();
+//        for (Entry<AsyncSortBlock<T>, AsyncSortBlock<
+//                        T>> en : this.sortBlockChain.entrySet()) {
+//            if (sortBlock != en.getKey()) {
+//                tmp.put(en.getKey(), en.getValue());
+//            }
+//        }
+//
+//
+//        this.sortBlockChain.clear();
+//        this.sortBlockChain.putAll(tmp);
+        Iterator<AsyncSortBlock<T>> it = this.sortBlockChain.keySet().iterator();
+        while (it.hasNext()) {
+            if (sortBlock == it.next()) {
+                it.remove();
+                break;
             }
         }
+    }
 
-//        AsyncSortBlock<T> old = this.sortBlockChain.remove(sortBlock);
-
-        this.sortBlockChain.clear();
-        this.sortBlockChain.putAll(tmp);
+    void reentrySortBlockChain(AsyncSortBlock<T> sortBlock) {
+        removeFromSortBlockChain(sortBlock);
+        addToSortBlockChain(sortBlock);
     }
 
     private void tryMergeSortBlock() {
-        if (this.countSortPool.get() >= this.sortPoolThreshold) {
+        if (this.countSortPool.get() >= this.sortPoolThreshold
+                || this.sortBlockChain.size() >= this.sortBlockChainMaxSize) {
             logger.debug(
-                "MergeSortBlockが開始されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
-                this.countSortPool,
-                this.sortBlockChain.size());
+                    "MergeSortBlockが開始されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
+                    this.countSortPool,
+                    this.sortBlockChain.size());
             mergeSortBlock();
             logger.debug(
-                "MergeSortBlockが終了されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
-                this.countSortPool,
-                this.sortBlockChain.size());
+                    "MergeSortBlockが終了されました。SortPoolにあるDTO個数:{}、SortBlock個数:{}",
+                    this.countSortPool,
+                    this.sortBlockChain.size());
         }
     }
 
@@ -248,39 +262,39 @@ public class AsyncSortPool<T> implements Iterator<T> {
         }
     }
 
-    void clearWaitQueue() {
-        System.out.println(sortBlockChain.size());
-
-        List<AsyncSortBlock<T>> sortBlockChainView = sortBlockChain.keySet().stream()
-                        .collect(Collectors.toList());
-
-        Iterator<AsyncSortBlock<T>> it = sortBlockChainView.iterator();
-        AsyncSortBlock<T> t;
-        while (it.hasNext()) {
-            t = it.next();
-            t.trySwap(true);
-        }
-
-        // TODO
-        it = sortBlockChain.keySet().iterator();
-        while (it.hasNext()) {
-            t = it.next();
-            JAT03B2240Z01_BDto dtoFirst = ((JAT03B2240Z01_BDto) t.getFirst());
-            System.out.print("FLIE:" + t.getFileCachePath().toString());
-            System.out.print(" MEMORY_CACHE:" + t.getMemoryCache().size());
-            System.out.print(
-                " FIRST:" + dtoFirst.getJhopeGempinKey() + "," + dtoFirst.getHikakuKeyJhope()
-                    + "," + dtoFirst.getErrorCode());
-            if (t.getLast() != null) {
-                JAT03B2240Z01_BDto dtoLast = ((JAT03B2240Z01_BDto) t.getLast());
-                System.out.println(
-                    "  END:" + dtoLast.getJhopeGempinKey() + "," + dtoLast.getHikakuKeyJhope()
-                        + "," + dtoLast.getErrorCode());
-            } else {
-                System.out.println(" ");
-            }
-        }
-    }
+//    void clearWaitQueue() {
+//        System.out.println(sortBlockChain.size());
+//
+//        List<AsyncSortBlock<T>> sortBlockChainView = sortBlockChain.keySet().stream()
+//                        .collect(Collectors.toList());
+//
+//        Iterator<AsyncSortBlock<T>> it = sortBlockChainView.iterator();
+//        AsyncSortBlock<T> t;
+//        while (it.hasNext()) {
+//            t = it.next();
+//            t.trySwap(true);
+//        }
+//
+//        // TODO
+//        it = sortBlockChain.keySet().iterator();
+//        while (it.hasNext()) {
+//            t = it.next();
+//            JAT03B2240Z01_BDto dtoFirst = ((JAT03B2240Z01_BDto) t.getFirst());
+//            System.out.print("FLIE:" + t.getFileCachePath().toString());
+//            System.out.print(" MEMORY_CACHE:" + t.getMemoryCache().size());
+//            System.out.print(
+//                " FIRST:" + dtoFirst.getJhopeGempinKey() + "," + dtoFirst.getHikakuKeyJhope()
+//                    + "," + dtoFirst.getErrorCode());
+//            if (t.getLast() != null) {
+//                JAT03B2240Z01_BDto dtoLast = ((JAT03B2240Z01_BDto) t.getLast());
+//                System.out.println(
+//                    "  END:" + dtoLast.getJhopeGempinKey() + "," + dtoLast.getHikakuKeyJhope()
+//                        + "," + dtoLast.getErrorCode());
+//            } else {
+//                System.out.println(" ");
+//            }
+//        }
+//    }
 
     void deleteCacheFolder() {
         try {
@@ -291,38 +305,78 @@ public class AsyncSortPool<T> implements Iterator<T> {
     }
 
     @Override
-    public boolean hasNext() {
-        if (this.currSortBlockChainIterator == null) {
-            this.currSortBlockChainIterator = this.sortBlockChain.keySet().iterator();
-        }
-        if (this.currDtoIterator == null || !this.currDtoIterator.hasNext()) {
-            if (this.currDtoIterator != null && !this.currDtoIterator.hasNext()) {
-                this.currSortBlockChainIterator.remove();
-            }
-            if (this.currSortBlockChainIterator.hasNext()) {
-                AsyncSortBlock<T> currSortBlockOfReading =
-                    this.currSortBlockChainIterator.next();
-                try {
-                    this.currDtoIterator = currSortBlockOfReading.read().iterator();
-                    currSortBlockOfReading.deleteFileCache();
-                } catch (ReportException | IOException e) {
-                    logger.error("SortBlockの読込が失敗しました。", e);
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        return this.currDtoIterator.hasNext();
-    }
-
-    @Override
-    public T next() {
-        return this.currDtoIterator.next();
-    }
-
     public Iterator<T> iterator() {
-        return this;
+        return new Itr();
+    }
+
+    private class Itr implements Iterator<T> {
+        private Iterator<T> currBlockIterator;
+        private Future<List<T>> nextBlockReadTask;
+
+        Itr() {
+            Entry<AsyncSortBlock<T>, AsyncSortBlock<T>> currEn =
+                    sortBlockChain.pollFirstEntry();
+            if (currEn != null) {
+                AsyncSortBlock<T> currBlock = currEn.getKey();
+                try {
+                    this.currBlockIterator = currBlock.readAll().iterator();
+                } catch (ReportException | IOException e) {
+                    logger.error("SortBlockの読込が失敗しました。{}", e);
+                    throw new SystemException(e);
+                }
+                currBlock.deleteFileCache();
+
+                readNextBlock();
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (!this.currBlockIterator.hasNext() && this.nextBlockReadTask != null) {
+                List<T> list;
+                try {
+                    list = this.nextBlockReadTask.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    logger.error("SortBlockの読込が失敗しました。{}", e);
+                    throw new SystemException(e);
+                }
+
+                readNextBlock();
+
+                if (list != null && !list.isEmpty()) {
+                    this.currBlockIterator = list.iterator();
+                } else {
+                    return hasNext();
+                }
+            }
+            return this.currBlockIterator.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return this.currBlockIterator.next();
+        }
+
+        private void readNextBlock() {
+            Entry<AsyncSortBlock<T>, AsyncSortBlock<T>> nextEn =
+                    sortBlockChain.pollFirstEntry();
+            if (nextEn != null) {
+                AsyncSortBlock<T> nextBlock = nextEn.getKey();
+                this.nextBlockReadTask = CompletableFuture.supplyAsync(() -> {
+                    List<T> list = null;
+                    try {
+                        list = nextBlock.readAll();
+                    } catch (ReportException | IOException e) {
+                        logger.error("SortBlockの読込が失敗しました。{}", e);
+                        throw new SystemException(e);
+                    }
+                    nextBlock.deleteFileCache();
+                    return list;
+                });
+            } else {
+                this.nextBlockReadTask = null;
+            }
+        }
     }
 
 }
